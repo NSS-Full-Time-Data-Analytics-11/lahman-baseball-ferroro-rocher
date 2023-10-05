@@ -3,11 +3,10 @@ SELECT * FROM teams;
 --1. What range of years for baseball games played does the provided database cover? 
 SELECT MIN(t.yearid) AS start_year, MAX(t.yearid) AS end_year, MAX(t.yearid) - MIN(t.yearid) AS total_played
 FROM teams AS t;
-----
 
 SELECT * FROM allstarfull;
 SELECT * FROM people;
---
+
 --2. Find the name and height of the shortest player in the database. How many games did he play in? What is the name of the team for which he played?
 
 SELECT p.namegiven,p.height, p.debut, p.finalgame,t.name  
@@ -101,8 +100,79 @@ ORDER BY stolen_percentage DESC, stolen_bases DESC
 LIMIT 1;
 
 --7.  From 1970 – 2016, what is the largest number of wins for a team that did not win the world series? 
---What is the smallest number of wins for a team that did win the world series? Doing this will probably result in an unusually small number of wins for a world series champion – determine why this is the case. Then redo your query, excluding the problem year. How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
+--What is the smallest number of wins for a team that did win the world series? 
+--Doing this will probably result in an unusually small number of wins for a world series champion – determine why this is the case. 
+--Then redo your query, excluding the problem year. 
+--How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? 
+--What percentage of the time?
+
+----PART A:
 SELECT MAX(w) AS maxwins_not_ws
 FROM teams
 WHERE yearid BETWEEN 1970 AND 2016
     AND WSWin = 'N';
+--PART B
+SELECT MIN(w) AS smallest_wins
+FROM teams
+WHERE WSWin ='Y'
+
+--PART C:
+
+
+--8. Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). 
+--Only consider parks where there were at least 10 games played. 
+--Report the park name, team name, and average attendance. 
+--Repeat for the lowest 5 average attendance.
+
+--Highest 5 average attendence
+
+SELECT hg.team, hg.park, (SUM(hg.attendance) / hg.games) AS avg_attendance
+FROM homegames AS hg
+WHERE year = 2016 
+AND park IN(
+       SELECT DISTINCT(park)
+       FROM homegames AS hg
+       WHERE year = 2016 AND games >= 10)
+GROUP BY hg.team, hg.park, hg.games
+--HAVING COUNT(*) >= 10
+ORDER BY avg_attendance DESC
+LIMIT 5;
+
+--lowest 5 average attendance
+
+SELECT hg.team, hg.park, (SUM(hg.attendance) / hg.games) AS avg_attendance
+FROM homegames AS hg
+WHERE year = 2016 
+AND park IN(
+       SELECT DISTINCT(park)
+       FROM homegames AS hg
+       WHERE year = 2016 AND games >= 10)
+GROUP BY hg.team, hg.park, hg.games
+--HAVING COUNT(*) >= 10
+ORDER BY avg_attendance ASC
+LIMIT 5;
+
+--9. Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)?
+--Give their full name and the teams that they were managing when they won the award.
+--SELECT * FROM managers;
+--SELECT * FROM awardsmanagers;
+--SELECT * FROM teams;
+SELECT p.namefirst, p.namelast, a.playerid, a.awardid, a.yearid, a.lgid AS league
+FROM people AS p
+INNER JOIN awardsmanagers AS a USING(playerid)
+--ON p.playerid = a.playerid
+WHERE (a.awardid = 'TSN Manager of the Year' AND lgid = 'NL') OR (a.awardid = 'TSN Manager of the Year' AND lgid = 'AL')
+ORDER BY p.namefirst, p.namelast
+
+
+--10. Find all players who hit their career highest number of home runs in 2016. 
+--Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. 
+--Report the players' first and last names and the number of home runs they hit in 2016.
+
+WITH cte AS (SELECT playerid, MIN(yearid) AS min_year, MAX(yearid) AS max_year, MAX(hr) AS max_hr FROM batting
+			 GROUP BY playerid
+			 HAVING (MAX(yearid) - MIN(yearid) >=10))
+SELECT playerid, namefirst, namelast, hr AS homeruns_in_2016 FROM batting
+RIGHT JOIN cte USING(playerid)
+INNER JOIN people USING(playerid)
+WHERE yearid = 2016 AND hr = max_hr AND hr >=1;
