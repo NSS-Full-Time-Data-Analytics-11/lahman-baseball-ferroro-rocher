@@ -94,11 +94,73 @@ ORDER BY w
 LIMIT 1;
  
 --PART D 
+WITH cte3 AS(WITH cte1 AS (SELECT yearid, name, w AS wins, WSWIN FROM teams
+						   WHERE (yearid BETWEEN 1970 AND 2016) AND (WSWIN = 'Y') AND (g > 120)
+						   ORDER BY yearid),
 
-yearid, teamid, w, WSWIN
+				  cte2 AS (SELECT yearid, MAX(w) AS highest_w_count_that_season FROM teams
+						   WHERE (yearid BETWEEN 1970 AND 2016) AND (g > 120)
+						   GROUP BY yearid
+						   ORDER BY yearid)
+			 SELECT cte1.yearid, name, wins,highest_w_count_that_season, wswin, 
+			 CASE WHEN wins >=highest_w_count_that_season THEN 1 WHEN wins < highest_w_count_that_season THEN 0 END AS WS_and_highest_wincount
+			 FROM cte1
+			 INNER JOIN cte2 USING(yearid))
+			 
+SELECT COUNT(wswin) AS total_wswins, SUM(WS_and_highest_wincount) AS total_WS_and_highest_wincount, 
+ROUND(((SUM(WS_and_highest_wincount)::numeric)/(COUNT(wswin)::numeric))*100,2) AS Percent_that_highest_w_also_ws_winner
+FROM cte3;
+			  
 
--- sb stolen bases
--- cs caught stealing
-SELECT * FROM pitching
-SELECT * FROM teams
+-- 8. Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 
+-- (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. 
+-- Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.		  
+-- PART A
+SELECT park_name, name team_name, (SUM(hg.attendance) / SUM(hg.games)) AS avg_attendance
+FROM homegames AS hg
+INNER JOIN teams ON hg.team = teams.teamid AND hg.year = teams.yearid
+INNER JOIN parks ON hg.park = parks.park
+WHERE year = 2016 AND games >= 10
+--HAVING COUNT(*) >= 10
+GROUP BY parks.park_name, teams.name
+ORDER BY avg_attendance DESC
+LIMIT 5;
 
+-- PART B
+SELECT park_name, name team_name, (SUM(hg.attendance) / SUM(hg.games)) AS avg_attendance
+FROM homegames AS hg
+INNER JOIN teams ON hg.team = teams.teamid AND hg.year = teams.yearid
+INNER JOIN parks ON hg.park = parks.park
+WHERE year = 2016 AND games >= 10
+--HAVING COUNT(*) >= 10
+GROUP BY parks.park_name, teams.name
+ORDER BY avg_attendance
+LIMIT 5;
+
+
+-- 9. Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and 
+-- the teams that they were managing when they won the award.			  
+WITH cte AS		(SELECT namefirst, namelast,playerid
+				 --MIN(awardsmanagers.lgid) AS al_winner, MAX(awardsmanagers.lgid)AS NL_winner
+				 FROM awardsmanagers
+				 INNER JOIN people USING(playerid)
+				 WHERE awardid ILIKE '%TSN%' 
+				 GROUP BY playerid,namefirst, namelast
+				 HAVING (MIN(awardsmanagers.lgid) = 'AL' AND MAX(awardsmanagers.lgid) = 'NL'))
+				 --USED (MIN(awardsmanagers.lgid) = 'AL' and MAX(awardsmanagers.lgid) = 'NL')) as a way to filter out managers that have won both. logic case using alphebetic order 
+SELECT playerid, namefirst, namelast, name, yearid,awardsmanagers.lgid AS league_award FROM cte
+INNER JOIN awardsmanagers USING(playerid)
+INNER JOIN managers USING(yearid,playerid)
+INNER JOIN teams USING(yearid,teamid)
+WHERE awardid ILIKE '%TSN%'; 
+
+
+-- 10. Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years,
+-- and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
+WITH cte AS (SELECT playerid, MIN(yearid) AS min_year, MAX(yearid) AS max_year, MAX(hr) AS max_hr FROM batting
+			 GROUP BY playerid
+			 HAVING (MAX(yearid) - MIN(yearid) >=10))
+SELECT playerid, namefirst, namelast, hr AS homeruns_in_2016 FROM batting
+RIGHT JOIN cte USING(playerid)
+INNER JOIN people USING(playerid)
+WHERE yearid = 2016 AND hr = max_hr AND hr >=1;
