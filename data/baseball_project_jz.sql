@@ -21,7 +21,7 @@ LIMIT 1;
 Create a list showing each player’s first and last names as well as the total salary they earned in the major leagues. 
 Sort this list in descending order by the total salary earned. Which Vanderbilt player earned the most money in the majors?*/
 
---This is just to check the answer
+--code for checking
 SELECT SUM(salary)::int::money
 FROM salaries
 WHERE playerid = 'priceda01';
@@ -55,7 +55,7 @@ FROM fielding
 WHERE yearid = '2016'
 GROUP BY position_played;
 
---Code to check
+--code for checking
 SELECT SUM(po)
 FROM fielding
 WHERE yearid = '2016';
@@ -148,8 +148,6 @@ WHERE wswin = 'Y' AND yearid >= '1970'
 GROUP BY yearid, teamid, wswin
 ORDER BY games_won;
 
-
-
 WITH cte AS (SELECT yearid,
 			 		MAX(teamid) AS team,
 			 	    MAX(g) AS games_played,
@@ -167,9 +165,7 @@ FROM cte
 	 USING (yearid)
 WHERE teams.yearid >= 1970 AND teams.wswin = 'Y' AND g > 120;
 
-
-
---from Aaron
+--with cte?
 WITH cte3 AS(WITH cte1 AS (SELECT yearid, name, w AS wins, WSWIN FROM teams
 						   WHERE (yearid BETWEEN 1970 AND 2016) AND (WSWIN = 'Y') AND (g > 120)
 						   ORDER BY yearid),
@@ -181,28 +177,7 @@ WITH cte3 AS(WITH cte1 AS (SELECT yearid, name, w AS wins, WSWIN FROM teams
 			 SELECT cte1.yearid, name, wins,highest_w_count_that_season, wswin, 
 			 CASE WHEN wins >=highest_w_count_that_season THEN 1 WHEN wins < highest_w_count_that_season THEN 0 END AS WS_and_highest_wincount
 			 FROM cte1
-			 INNER JOIN cte2 USING(yearid))
-			 
-SELECT COUNT(wswin) AS total_wswins, SUM(WS_and_highest_wincount) AS total_WS_and_highest_wincount, 
-ROUND(((SUM(WS_and_highest_wincount)::numeric)/(COUNT(wswin)::numeric))*100,2) AS Percent_that_highest_w_wins_ws
-FROM cte3;
-
-
-
---
-WITH cte3 AS(WITH cte1 AS (SELECT yearid, name, w AS wins, WSWIN FROM teams
-						   WHERE (yearid BETWEEN 1970 AND 2016) AND (WSWIN = 'Y') AND (g > 120)
-						   ORDER BY yearid),
-
-				  cte2 AS (SELECT yearid, MAX(w) AS highest_w_count_that_season FROM teams
-						   WHERE (yearid BETWEEN 1970 AND 2016) AND (g > 120)
-						   GROUP BY yearid
-						   ORDER BY yearid)
-			 SELECT cte1.yearid, name, wins,highest_w_count_that_season, wswin, 
-			 CASE WHEN wins >=highest_w_count_that_season THEN 1 WHEN wins < highest_w_count_that_season THEN 0 END AS WS_and_highest_wincount
-			 FROM cte1
-			 INNER JOIN cte2 USING(yearid))
-			 
+			 INNER JOIN cte2 USING(yearid))		 
 SELECT COUNT(wswin) AS total_wswins, SUM(WS_and_highest_wincount) AS total_WS_and_highest_wincount, 
 ROUND(((SUM(WS_and_highest_wincount)::numeric)/(COUNT(wswin)::numeric))*100,2) AS Percent_that_highest_w_wins_ws
 FROM cte3;
@@ -226,7 +201,6 @@ ORDER BY avg_attendance DESC
 LIMIT 5;
 
 --lowest 5 average attendance
-
 SELECT hg.team, hg.park, (SUM(hg.attendance) / hg.games) AS avg_attendance
 FROM homegames AS hg
 WHERE year = 2016 
@@ -278,8 +252,7 @@ FROM batting
 GROUP BY playerid, yearid, hr
 ORDER BY playerid, yearid
 
-
-
+--from aaron
 WITH cte AS (SELECT playerid, MIN(yearid) AS min_year, MAX(yearid) AS max_year, MAX(hr) AS max_hr FROM batting
 			 GROUP BY playerid
 			 HAVING (MAX(yearid) - MIN(yearid) >=10))
@@ -287,8 +260,6 @@ SELECT playerid, namefirst, namelast, hr AS homeruns_in_2016 FROM batting
 RIGHT JOIN cte USING(playerid)
 INNER JOIN people USING(playerid)
 WHERE yearid = 2016 AND hr = max_hr AND hr >=1;
-
-
 
 --from liam
 WITH cte AS(SELECT namefirst, 
@@ -312,7 +283,6 @@ WHERE career_high = 'Y'
 GROUP BY namefirst, namelast, years_played
 ORDER BY homeruns DESC
 
-
 --from sree
 SELECT p.playerid, 
 	   p.namefirst AS firstname, 
@@ -333,3 +303,41 @@ GROUP BY p.playerid, p.namefirst, p.namelast
 HAVING MAX(b.hr) = (SELECT MAX(hr)
         		    FROM batting AS b2
         			WHERE b2.playerid = p.playerid);
+	
+/*11. Is there any correlation between number of wins and team salary? Use data from 2000 and later to answer this question. 
+As you do this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year basis.*/
+
+SELECT s.teamid,
+	   s.yearid,
+	   t.w,
+	   SUM(salary::integer::money)
+FROM salaries AS s
+FULL JOIN teams AS t
+USING (teamid, yearid)
+WHERE s.yearid >= 2000
+GROUP BY s.teamid, s.yearid, t.w
+ORDER BY s.teamid, s.yearid
+
+--from sree
+WITH TeamSalaries AS (SELECT teamid, yearid, SUM(salary::integer::money) AS team_salary
+ 					  FROM salaries
+					  WHERE yearid >= 2000
+					  GROUP BY teamid, yearid)
+SELECT t.teamid, t.yearid, SUM(t.w) AS team_wins, ts.team_salary
+FROM teams AS t
+INNER JOIN TeamSalaries AS ts
+ON t.teamid = ts.teamid AND t.yearid = ts.yearid
+WHERE t.yearid >= 2000
+GROUP BY  t.teamid, t.yearid, ts.team_salary
+ORDER BY t.teamid, t.yearid;
+
+
+WITH cte AS		(SELECT s.teamid, s.yearid, t.w AS wins, SUM(salary::integer::money) AS salary
+				FROM salaries AS s
+				FULL JOIN teams AS t USING(teamid, yearid) 
+				WHERE s.yearid >= 2000
+				GROUP BY s.teamid, s.yearid, t.w
+				ORDER BY s.teamid, s.yearid)
+SELECT teamid, yearid, wins, salary, CORR(wins::numeric,salary::numeric) OVER(PARTITION BY teamid ORDER BY yearid) AS correlation_coefficient
+FROM cte
+
