@@ -1,10 +1,12 @@
 -- 1. What range of years for baseball games played does the provided database cover? 
-SELECT MIN(year) AS start_year, MAX(year) AS last_year, MAX(year)-MIN(year) AS total_years_played from homegames;
+SELECT MIN(year) AS start_year, MAX(year) AS last_year, MAX(year)-MIN(year) AS total_years_played 
+FROM homegames;
 
 
 -- 2. Find the name and height of the shortest player in the database. How many games did he play in? What is the name 
 -- of the team for which he played?
-SELECT namegiven,height, debut, finalgame,teams.name  FROM people
+SELECT namegiven,height, debut, finalgame,teams.name  
+FROM people
 INNER JOIN appearances USING(playerid)
 INNER JOIN teams USING(teamid)
 ORDER BY height
@@ -76,19 +78,22 @@ LIMIT 1;
 -- How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
 
 -- PART A
-SELECT yearid, name, w AS wins, WSWIN FROM teams
+SELECT yearid, name, w AS wins, WSWIN 
+FROM teams
 WHERE (yearid BETWEEN 1970 AND 2016) AND (WSWIN = 'N')
 ORDER BY w DESC
 LIMIT 1;
 
 --PART B
-SELECT yearid, name, w AS wins, WSWIN FROM teams
+SELECT yearid, name, w AS wins, WSWIN 
+FROM teams
 WHERE (yearid BETWEEN 1970 AND 2016) AND (WSWIN = 'Y')
 ORDER BY w
 LIMIT 1;
 
 --PART C
-SELECT yearid, name, w AS wins, WSWIN FROM teams
+SELECT yearid, name, w AS wins, WSWIN 
+FROM teams
 WHERE (yearid BETWEEN 1970 AND 2016) AND (WSWIN = 'Y') AND (g > 120)
 ORDER BY w
 LIMIT 1;
@@ -97,19 +102,22 @@ LIMIT 1;
 WITH cte3 AS(WITH cte1 AS (SELECT yearid, name, w AS wins, WSWIN FROM teams
 						   WHERE (yearid BETWEEN 1970 AND 2016) AND (WSWIN = 'Y') AND (g > 120)
 						   ORDER BY yearid),
-
+						 --^ cte that finds all teams that has a 'Y' for WSWIN between 1970 and 2016 excluding riot year
 				  cte2 AS (SELECT yearid, MAX(w) AS highest_w_count_that_season FROM teams
 						   WHERE (yearid BETWEEN 1970 AND 2016) AND (g > 120)
 						   GROUP BY yearid
 						   ORDER BY yearid)
+			 --^ cte that finds the highest win count per year 1970 and 2016 excluding riot year
 			 SELECT cte1.yearid, name, wins,highest_w_count_that_season, wswin, 
 			 CASE WHEN wins >=highest_w_count_that_season THEN 1 WHEN wins < highest_w_count_that_season THEN 0 END AS WS_and_highest_wincount
 			 FROM cte1
 			 INNER JOIN cte2 USING(yearid))
+			 --merging cte1 and cte1 so that if the season with their highest win count was also the season with a WSWIN the it would report as a 1, otherwise 0
 			 
 SELECT COUNT(wswin) AS total_wswins, SUM(WS_and_highest_wincount) AS total_WS_and_highest_wincount, 
 ROUND(((SUM(WS_and_highest_wincount)::numeric)/(COUNT(wswin)::numeric))*100,2) AS Percent_that_highest_w_also_ws_winner
 FROM cte3;
+--^creating cte3 out of the first 2 ctes that converts wins into numeric then devides to allow for a percent
 			  
 
 -- 8. Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 
@@ -157,10 +165,26 @@ WHERE awardid ILIKE '%TSN%';
 
 -- 10. Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years,
 -- and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
-WITH cte AS (SELECT playerid, MIN(yearid) AS min_year, MAX(yearid) AS max_year, MAX(hr) AS max_hr FROM batting
+WITH cte AS (SELECT playerid, MIN(yearid) AS min_year, MAX(yearid) AS max_year, MAX(hr) AS max_hr 
+			 FROM batting
 			 GROUP BY playerid
 			 HAVING (MAX(yearid) - MIN(yearid) >=10))
 SELECT playerid, namefirst, namelast, hr AS homeruns_in_2016 FROM batting
 RIGHT JOIN cte USING(playerid)
 INNER JOIN people USING(playerid)
 WHERE yearid = 2016 AND hr = max_hr AND hr >=1;
+
+
+-- 11. Is there any correlation between number of wins and team salary? Use data from 2000 and later to answer this question.
+-- As you do this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year basis.
+WITH cte AS		(SELECT s.teamid, s.yearid, t.w AS wins, SUM(salary::integer::money) AS salary
+				FROM salaries AS s
+				FULL JOIN teams AS t USING(teamid, yearid) 
+				WHERE s.yearid >= 2000
+				GROUP BY s.teamid, s.yearid, t.w
+				ORDER BY s.teamid, s.yearid)
+SELECT teamid, yearid, wins, salary, CORR(wins::numeric,salary::numeric) OVER(PARTITION BY teamid ORDER BY yearid) AS correlation_coefficient
+FROM cte
+
+
+
